@@ -1,0 +1,35 @@
+name: Verse8 Discord Daily Report
+
+on:
+  schedule:
+    # 10:00 KST = 01:00 UTC
+    - cron: "0 1 * * *"
+  workflow_dispatch:
+
+jobs:
+  run-daily-report:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Run report bot
+        env:
+          DISCORD_BOT_TOKEN: ${{ secrets.DISCORD_BOT_TOKEN }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+          OPENAI_MODEL: ${{ vars.OPENAI_MODEL || 'gpt-4.1' }}
+          WINDOW_HOURS: ${{ vars.WINDOW_HOURS || '24' }}
+          MAX_MESSAGES_PER_CHANNEL: ${{ vars.MAX_MESSAGES_PER_CHANNEL || '400' }}
+          # Optional override example:
+          # DISCORD_CHANNELS_JSON: ${{ vars.DISCORD_CHANNELS_JSON }}
+        run: python src/main.py
