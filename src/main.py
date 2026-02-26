@@ -10,6 +10,7 @@ from dateutil import parser as date_parser
 from openai import OpenAI
 
 DISCORD_API_BASE = "https://discord.com/api/v10"
+GEMINI_API_BASE = "https://generativelanguage.googleapis.com/v1beta"
 KST = timezone(timedelta(hours=9))
 
 
@@ -171,14 +172,7 @@ def build_llm_input(
     return "\n".join(chunks)
 
 
-def generate_report(
-    openai_api_key: str,
-    model: str,
-    llm_input: str,
-    report_time_kst: datetime,
-) -> str:
-    client = OpenAI(api_key=openai_api_key)
-
+def report_prompts(llm_input: str, report_time_kst: datetime) -> tuple[str, str]:
     system_prompt = """당신은 디스코드 커뮤니티 운영 리포트 작성자다.
 항상 한국어로 작성한다.
 과장 없이 사실 중심으로 작성한다.
@@ -215,6 +209,17 @@ def generate_report(
 
 {llm_input}
 """
+    return system_prompt, user_prompt
+
+
+def generate_report_openai(
+    openai_api_key: str,
+    model: str,
+    llm_input: str,
+    report_time_kst: datetime,
+) -> str:
+    client = OpenAI(api_key=openai_api_key)
+    system_prompt, user_prompt = report_prompts(llm_input, report_time_kst)
 
     response = client.responses.create(
         model=model,
@@ -228,6 +233,41 @@ def generate_report(
     return response.output_text.strip()
 
 
+def generate_report_gemini(
+    gemini_api_key: str,
+    model: str,
+    llm_input: str,
+    report_time_kst: datetime,
+) -> str:
+    system_prompt, user_prompt = report_prompts(llm_input, report_time_kst)
+    url = f"{GEMINI_API_BASE}/models/{model}:generateContent"
+
+    payload = {
+        "systemInstruction": {"parts": [{"text": system_prompt}]},
+        "contents": [{"role": "user", "parts": [{"text": user_prompt}]}],
+        "generationConfig": {"temperature": 0.2},
+    }
+    resp = requests.post(
+        url,
+        params={"key": gemini_api_key},
+        json=payload,
+        timeout=60,
+    )
+    if resp.status_code >= 300:
+        raise RuntimeError(f"Gemini API error: {resp.status_code} {resp.text[:500]}")
+
+    data = resp.json()
+    candidates = data.get("candidates") or []
+    if not candidates:
+        raise RuntimeError(f"Gemini API returned no candidates: {data}")
+
+    parts = (((candidates[0] or {}).get("content") or {}).get("parts")) or []
+    text = "".join(part.get("text", "") for part in parts if isinstance(part, dict)).strip()
+    if not text:
+        raise RuntimeError(f"Gemini API returned empty text: {data}")
+    return text
+
+
 def post_to_slack(webhook_url: str, text: str) -> None:
     resp = requests.post(webhook_url, json={"text": text}, timeout=30)
     if resp.status_code >= 300:
@@ -237,10 +277,11 @@ def post_to_slack(webhook_url: str, text: str) -> None:
 def main() -> int:
     try:
         discord_bot_token = env_required("DISCORD_BOT_TOKEN")
-        openai_api_key = env_required("OPENAI_API_KEY")
         slack_webhook_url = env_required("SLACK_WEBHOOK_URL")
 
-        model = os.getenv("OPENAI_MODEL", "gpt-4.1")
+        llm_provider = os.getenv("LLM_PROVIDER", "gemini").strip().lower()
+        openai_model = os.getenv("OPENAI_MODEL", "gpt-4.1")
+        gemini_model = os.getenv("GEMINI_MODEL", "gemini-2.0-flash")
         max_messages_per_channel = int(os.getenv("MAX_MESSAGES_PER_CHANNEL", "400"))
 
         channels = load_channel_configs()
@@ -271,7 +312,14 @@ def main() -> int:
             )
 
         llm_input = build_llm_input(channels, messages_by_channel, start_utc, end_utc)
-        report = generate_report(openai_api_key, model, llm_input, report_time_kst)
+        if llm_provider == "openai":
+            openai_api_key = env_required("OPENAI_API_KEY")
+            report = generate_report_openai(openai_api_key, openai_model, llm_input, report_time_kst)
+        elif llm_provider == "gemini":
+            gemini_api_key = env_required("GEMINI_API_KEY")
+            report = generate_report_gemini(gemini_api_key, gemini_model, llm_input, report_time_kst)
+        else:
+            raise ValueError("LLM_PROVIDER must be one of: openai, gemini")
 
         print("\n===== GENERATED REPORT =====\n")
         print(report)

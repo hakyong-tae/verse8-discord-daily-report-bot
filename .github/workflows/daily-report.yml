@@ -25,9 +25,19 @@ jobs:
       - name: Run report bot
         env:
           DISCORD_BOT_TOKEN: ${{ secrets.DISCORD_BOT_TOKEN }}
-          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
           SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+
+          # LLM provider: gemini (default) or openai
+          LLM_PROVIDER: ${{ vars.LLM_PROVIDER || 'gemini' }}
+
+          # Gemini
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          GEMINI_MODEL: ${{ vars.GEMINI_MODEL || 'gemini-2.0-flash' }}
+
+          # OpenAI (used only when LLM_PROVIDER=openai)
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
           OPENAI_MODEL: ${{ vars.OPENAI_MODEL || 'gpt-4.1' }}
+
           WINDOW_HOURS: ${{ vars.WINDOW_HOURS || '24' }}
           MAX_MESSAGES_PER_CHANNEL: ${{ vars.MAX_MESSAGES_PER_CHANNEL || '400' }}
           # Optional override example:

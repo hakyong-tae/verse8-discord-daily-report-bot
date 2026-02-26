@@ -5,7 +5,7 @@ Discord 주요 채널을 매일 읽어서, 기존 보고 포맷에 맞춰 요약
 ## 1) 이 프로젝트가 하는 일
 - 매일 **오전 10시(KST)** GitHub Actions가 실행됨
 - 최근 24시간 Discord 메시지 수집
-- OpenAI로 한국어 운영 리포트 생성
+- LLM(Gemini 또는 OpenAI)으로 한국어 운영 리포트 생성
 - Slack 채널로 자동 전송
 
 ## 2) 포함된 채널 (기본값)
@@ -23,6 +23,7 @@ Discord 주요 채널을 매일 읽어서, 기존 보고 포맷에 맞춰 요약
 3. Bot 설정에서 아래 활성화
 - `SERVER MEMBERS INTENT`
 - `MESSAGE CONTENT INTENT` (중요)
+- `Requires OAuth2 Code Grant`는 OFF
 4. 서버(Verse8)에 Bot 초대
 5. 위 5개 채널에서 Bot에 최소 권한 부여
 - View Channel
@@ -36,27 +37,31 @@ Discord 주요 채널을 매일 읽어서, 기존 보고 포맷에 맞춰 요약
 참고: 공유 초대 링크(`join.slack.com/...`)는 전송 API URL이 아닙니다.
 반드시 `https://hooks.slack.com/services/...` 형태의 Webhook URL이 필요합니다.
 
-## 5) GitHub 저장소에 업로드
-```bash
-git init
-git add .
-git commit -m "Add daily Discord->Slack report bot"
-git branch -M main
-git remote add origin <YOUR_REPO_URL>
-git push -u origin main
-```
+## 5) LLM 선택
+- 기본값: `gemini`
+- 선택값: `gemini` 또는 `openai`
+
+중요:
+- ChatGPT Plus 구독은 OpenAI API 크레딧과 별개입니다.
+- OpenAI API를 쓰려면 별도 과금/크레딧이 필요합니다.
 
 ## 6) GitHub Secrets 설정
 Repository > Settings > Secrets and variables > Actions > Secrets
 
-아래 3개를 등록하세요.
+필수:
 - `DISCORD_BOT_TOKEN`
-- `OPENAI_API_KEY`
 - `SLACK_WEBHOOK_URL`
 
-## 7) 선택 옵션 (Variables)
+LLM별:
+- Gemini 사용 시 `GEMINI_API_KEY`
+- OpenAI 사용 시 `OPENAI_API_KEY`
+
+## 7) GitHub Variables 설정
 Repository > Settings > Secrets and variables > Actions > Variables
 
+권장:
+- `LLM_PROVIDER` (기본 `gemini`)
+- `GEMINI_MODEL` (기본 `gemini-2.0-flash`)
 - `OPENAI_MODEL` (기본 `gpt-4.1`)
 - `WINDOW_HOURS` (기본 `24`)
 - `MAX_MESSAGES_PER_CHANNEL` (기본 `400`)
