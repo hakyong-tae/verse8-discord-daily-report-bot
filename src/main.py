@@ -104,6 +104,11 @@ def fetch_channel_messages(
         url = f"{DISCORD_API_BASE}/channels/{channel_id}/messages"
         resp = requests.get(url, headers=headers, params=params, timeout=30)
 
+        if resp.status_code == 403:
+            raise PermissionError(
+                f"Discord access denied channel={channel_id}: {resp.status_code} {resp.text[:300]}"
+            )
+
         if resp.status_code != 200:
             raise RuntimeError(
                 f"Discord API error channel={channel_id}: {resp.status_code} {resp.text[:300]}"
@@ -243,16 +248,27 @@ def main() -> int:
         report_time_kst = end_utc.astimezone(KST)
 
         messages_by_channel: Dict[str, List[Dict[str, Any]]] = {}
+        accessible_channels = 0
         for ch in channels:
-            messages = fetch_channel_messages(
-                token=discord_bot_token,
-                channel_id=ch.channel_id,
-                start_utc=start_utc,
-                end_utc=end_utc,
-                max_messages=max_messages_per_channel,
+            try:
+                messages = fetch_channel_messages(
+                    token=discord_bot_token,
+                    channel_id=ch.channel_id,
+                    start_utc=start_utc,
+                    end_utc=end_utc,
+                    max_messages=max_messages_per_channel,
+                )
+                messages_by_channel[ch.channel_id] = messages
+                accessible_channels += 1
+                print(f"Fetched {len(messages)} messages from {ch.label}")
+            except PermissionError as e:
+                messages_by_channel[ch.channel_id] = []
+                print(f"WARNING: {e}")
+
+        if accessible_channels == 0:
+            raise RuntimeError(
+                "Bot cannot access any configured channels. Check channel-level permissions in Discord."
             )
-            messages_by_channel[ch.channel_id] = messages
-            print(f"Fetched {len(messages)} messages from {ch.label}")
 
         llm_input = build_llm_input(channels, messages_by_channel, start_utc, end_utc)
         report = generate_report(openai_api_key, model, llm_input, report_time_kst)
