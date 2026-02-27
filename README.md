@@ -67,8 +67,9 @@ Repository > Settings > Secrets and variables > Actions > Variables
 - `GEMINI_MODEL` (기본 `gemini-2.0-flash`)
 - `OPENAI_MODEL` (기본 `gpt-4.1`)
 - `WINDOW_HOURS` (기본 `24`)
-- `MAX_MESSAGES_PER_CHANNEL` (기본 `400`)
-- `MAX_MESSAGES_FOR_LLM_PER_CHANNEL` (기본 `120`, 요약 입력량 제한)
+- `MAX_MESSAGES_PER_CHANNEL` (기본 `180`)
+- `MAX_MESSAGES_FOR_LLM_PER_CHANNEL` (기본 `60`, 요약 입력량 제한)
+- `RUN_UNTIL_DATE` (선택, `YYYY-MM-DD`, 이 날짜 이후 자동 건너뜀)
 - `DISCORD_CHANNELS_JSON` (선택)
 
 ## 8) 실행 방식

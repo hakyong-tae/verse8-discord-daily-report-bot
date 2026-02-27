@@ -450,14 +450,22 @@ def main() -> int:
         llm_provider = os.getenv("LLM_PROVIDER", "gemini").strip().lower()
         openai_model = os.getenv("OPENAI_MODEL", "gpt-4.1")
         gemini_model = os.getenv("GEMINI_MODEL", "gemini-2.0-flash")
-        max_messages_per_channel = int(os.getenv("MAX_MESSAGES_PER_CHANNEL", "400"))
+        max_messages_per_channel = int(os.getenv("MAX_MESSAGES_PER_CHANNEL", "180"))
         max_messages_for_llm_per_channel = int(
-            os.getenv("MAX_MESSAGES_FOR_LLM_PER_CHANNEL", "120")
+            os.getenv("MAX_MESSAGES_FOR_LLM_PER_CHANNEL", "60")
         )
 
         channels = load_channel_configs()
         start_utc, end_utc = get_time_window()
         report_time_kst = end_utc.astimezone(KST)
+        run_until_date = os.getenv("RUN_UNTIL_DATE", "").strip()
+        if run_until_date:
+            until = datetime.strptime(run_until_date, "%Y-%m-%d").date()
+            if report_time_kst.date() > until:
+                print(
+                    f"Run skipped: report date {report_time_kst.date()} is after RUN_UNTIL_DATE={run_until_date}"
+                )
+                return 0
 
         messages_by_channel: Dict[str, List[Dict[str, Any]]] = {}
         accessible_channels = 0
