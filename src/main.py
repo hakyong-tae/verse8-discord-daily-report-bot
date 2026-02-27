@@ -273,6 +273,49 @@ def post_to_slack(webhook_url: str, text: str) -> None:
         raise RuntimeError(f"Slack webhook error: {resp.status_code} {resp.text[:300]}")
 
 
+def generate_fallback_report(
+    channels: List[ChannelConfig],
+    messages_by_channel: Dict[str, List[Dict[str, Any]]],
+    report_time_kst: datetime,
+    reason: str,
+) -> str:
+    lines: List[str] = []
+    lines.append(
+        f"[Verse 8 디스코드 현황 보고] – {report_time_kst.year}년 {report_time_kst.month}월 {report_time_kst.day}일 10:00 기준"
+    )
+    lines.append("")
+    lines.append("[안내] LLM API 한도 이슈로 기본 요약 모드로 생성되었습니다.")
+    lines.append(f"[사유] {reason[:180]}")
+    lines.append("")
+
+    for idx, ch in enumerate(channels, start=1):
+        msgs = messages_by_channel.get(ch.channel_id, [])
+        lines.append(f"{idx}) {ch.label}")
+        if not msgs:
+            lines.append("최근 24시간 기준 메시지가 없거나 접근 가능한 로그가 확인되지 않았습니다.")
+            lines.append("")
+            continue
+
+        latest = msgs[-1]
+        latest_author = (latest.get("author") or {}).get("username", "unknown")
+        latest_content = (latest.get("content") or "").strip()
+        if not latest_content:
+            latest_content = "[텍스트 없음/첨부 중심 메시지]"
+        if len(latest_content) > 160:
+            latest_content = latest_content[:157] + "..."
+
+        lines.append(
+            f"최근 24시간 동안 총 {len(msgs)}건의 메시지가 확인되었습니다. 최신 대화는 {latest_author} 사용자의 '{latest_content}' 발언이었습니다."
+        )
+        lines.append("")
+
+    lines.append("운영 메모")
+    lines.append("- LLM API 쿼터(무료/유료) 설정을 확인한 뒤 정상 요약 모드로 전환 필요")
+    lines.append("- 메시지량이 많은 채널부터 우선 모니터링 권장")
+    lines.append("- 접근 불가 채널이 있으면 채널 권한(View/History) 재점검")
+    return "\n".join(lines)
+
+
 def main() -> int:
     try:
         discord_bot_token = env_required("DISCORD_BOT_TOKEN")
@@ -311,18 +354,26 @@ def main() -> int:
             )
 
         llm_input = build_llm_input(channels, messages_by_channel, start_utc, end_utc)
-        if llm_provider == "openai":
-            openai_api_key = env_required("OPENAI_API_KEY")
-            report = generate_report_openai(
-                openai_api_key, openai_model, llm_input, report_time_kst, channels
-            )
-        elif llm_provider == "gemini":
-            gemini_api_key = env_required("GEMINI_API_KEY")
-            report = generate_report_gemini(
-                gemini_api_key, gemini_model, llm_input, report_time_kst, channels
-            )
-        else:
-            raise ValueError("LLM_PROVIDER must be one of: openai, gemini")
+        try:
+            if llm_provider == "openai":
+                openai_api_key = env_required("OPENAI_API_KEY")
+                report = generate_report_openai(
+                    openai_api_key, openai_model, llm_input, report_time_kst, channels
+                )
+            elif llm_provider == "gemini":
+                gemini_api_key = env_required("GEMINI_API_KEY")
+                report = generate_report_gemini(
+                    gemini_api_key, gemini_model, llm_input, report_time_kst, channels
+                )
+            else:
+                raise ValueError("LLM_PROVIDER must be one of: openai, gemini")
+        except Exception as e:
+            err = str(e).lower()
+            if "429" in err or "quota" in err or "insufficient_quota" in err:
+                print(f"WARNING: LLM quota/rate issue, switching to fallback summary: {e}")
+                report = generate_fallback_report(channels, messages_by_channel, report_time_kst, str(e))
+            else:
+                raise
 
         print("\n===== GENERATED REPORT =====\n")
         print(report)
