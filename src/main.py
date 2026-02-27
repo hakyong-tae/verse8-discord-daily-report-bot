@@ -13,6 +13,46 @@ from openai import OpenAI
 DISCORD_API_BASE = "https://discord.com/api/v10"
 GEMINI_API_BASE = "https://generativelanguage.googleapis.com/v1beta"
 KST = timezone(timedelta(hours=9))
+ISSUE_KEYWORDS = [
+    "error",
+    "bug",
+    "issue",
+    "fail",
+    "failed",
+    "connection",
+    "connect",
+    "login",
+    "signin",
+    "reward",
+    "point",
+    "points",
+    "credit",
+    "token",
+    "listing",
+    "fix",
+    "broken",
+    "problem",
+    "cannot",
+    "can't",
+    "unable",
+    "네트워크",
+    "연결",
+    "에러",
+    "오류",
+    "버그",
+    "로그인",
+    "접속",
+    "복구",
+    "보상",
+    "포인트",
+    "토큰",
+    "상장",
+    "개선",
+    "수정",
+    "안됨",
+    "문제",
+    "불가",
+]
 
 
 @dataclass
@@ -107,6 +147,19 @@ def is_noise_message(content: str) -> bool:
     if len(text) <= 8:
         return True
     return False
+
+
+def issue_score(content: str) -> int:
+    text = content.lower()
+    score = 0
+    for kw in ISSUE_KEYWORDS:
+        if kw in text:
+            score += 2
+    if "?" in text:
+        score += 1
+    if len(text) >= 50:
+        score += 1
+    return score
 
 
 def fetch_channel_messages(
@@ -324,47 +377,68 @@ def generate_fallback_report(
     report_time_kst: datetime,
     reason: str,
 ) -> str:
+    issue_candidates: List[Dict[str, Any]] = []
+    issue_count_by_channel: Dict[str, int] = {}
+    channel_by_id = {c.channel_id: c for c in channels}
+    for ch in channels:
+        msgs = messages_by_channel.get(ch.channel_id, [])
+        issue_count = 0
+        for m in msgs:
+            content = (m.get("content") or "").strip()
+            if not content or is_noise_message(content):
+                continue
+            score = issue_score(content)
+            if score <= 0:
+                continue
+            issue_count += 1
+            issue_candidates.append(
+                {
+                    "channel_id": ch.channel_id,
+                    "label": ch.label,
+                    "author": (m.get("author") or {}).get("username", "unknown"),
+                    "content": content,
+                    "score": score,
+                    "ts": m.get("timestamp", ""),
+                }
+            )
+        issue_count_by_channel[ch.channel_id] = issue_count
+
+    issue_candidates.sort(key=lambda x: (x["score"], x["ts"]), reverse=True)
+    top_candidates = issue_candidates[:3]
+
     lines: List[str] = []
     lines.append(
         f"[Verse 8 디스코드 핵심 이슈 요약] – {report_time_kst.year}년 {report_time_kst.month}월 {report_time_kst.day}일 10:00 기준"
     )
     lines.append("")
-    lines.append("[안내] LLM API 한도 이슈로 기본 요약 모드로 생성되었습니다.")
-    lines.append(f"[사유] {reason[:180]}")
+    lines.append("[안내] API 한도 이슈로 규칙 기반 핵심 이슈 추출 모드로 생성되었습니다.")
     lines.append("")
-
-    ranked = sorted(
-        channels,
-        key=lambda c: len(messages_by_channel.get(c.channel_id, [])),
-        reverse=True,
-    )[:3]
-    for idx, ch in enumerate(ranked, start=1):
-        msgs = messages_by_channel.get(ch.channel_id, [])
-        lines.append(f"{idx}) {ch.label} 채널 이슈 모니터링 필요")
-        if not msgs:
-            lines.append("- 최근 24시간 기준 메시지가 없거나 접근 가능한 로그가 확인되지 않았습니다.")
-            lines.append("- 관련 채널: 해당 없음")
-            lines.append("- 즉시 액션: 채널 권한 및 이벤트 일정 재점검")
-            lines.append("")
-            continue
-
-        latest = msgs[-1]
-        latest_author = (latest.get("author") or {}).get("username", "unknown")
-        latest_content = (latest.get("content") or "").strip()
-        if not latest_content:
-            latest_content = "[텍스트 없음/첨부 중심 메시지]"
-        if len(latest_content) > 160:
-            latest_content = latest_content[:157] + "..."
-
-        lines.append(f"- 최근 24시간 동안 총 {len(msgs)}건의 메시지가 확인되었습니다.")
-        lines.append(f"- 최신 이슈 후보 발언: {latest_author} - '{latest_content}'")
-        lines.append(f"- 즉시 액션: {ch.label} 채널에서 반복 언급 이슈를 운영진이 우선 분류")
+    if not top_candidates:
+        lines.append("1) 유의미한 이슈 후보가 부족합니다.")
+        lines.append("- 인사/잡담을 제외한 메시지에서 명확한 오류/보상/운영 이슈 키워드가 많지 않았습니다.")
+        lines.append("- 즉시 액션: 이벤트/오류 관련 질문 템플릿을 고정 공지로 안내")
         lines.append("")
+    else:
+        for idx, c in enumerate(top_candidates, start=1):
+            ch = channel_by_id[c["channel_id"]]
+            total_msgs = len(messages_by_channel.get(ch.channel_id, []))
+            content = c["content"]
+            if len(content) > 190:
+                content = content[:187] + "..."
+            lines.append(f"{idx}) {ch.label} 이슈")
+            lines.append(
+                f"- '{content}' 관련 대화가 이슈 후보로 분류되었습니다(작성자: {c['author']})."
+            )
+            lines.append(
+                f"- 관련 채널: {ch.label} (전체 {total_msgs}건, 이슈 후보 {issue_count_by_channel.get(ch.channel_id, 0)}건)"
+            )
+            lines.append("- 즉시 액션: 운영진 확인 후 공지/가이드/답변 상태를 채널에 명시")
+            lines.append("")
 
     lines.append("운영 메모")
-    lines.append("- LLM API 쿼터(무료/유료) 설정을 확인한 뒤 정상 요약 모드로 전환 필요")
-    lines.append("- 메시지량이 많은 채널부터 우선 모니터링 권장")
-    lines.append("- 접근 불가 채널이 있으면 채널 권한(View/History) 재점검")
+    lines.append("- LLM 쿼터 복구 시 문맥 기반 요약 품질이 개선됩니다.")
+    lines.append("- 현재 모드는 키워드 기반이므로 맥락 누락 가능성이 있습니다.")
+    lines.append("- 접근 불가 채널이 있으면 채널 권한(View/History)을 점검하세요.")
     return "\n".join(lines)
 
 
