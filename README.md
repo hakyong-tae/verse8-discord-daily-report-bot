@@ -14,6 +14,8 @@ Discord 주요 채널을 매일 읽어서, 기존 보고 포맷에 맞춰 요약
 - `cpp-elites` (1465948768846348431)
 - `creator-chat` (1390227183196176384)
 - `korean-creator` (1401835443657510953)
+- `event-chat-1` (1447610199585062973)
+- `event-chat-2` (1445637595995308093)
 
 기본값은 `src/main.py`에 이미 들어있고, 필요 시 `DISCORD_CHANNELS_JSON`으로 덮어쓸 수 있습니다.
 
@@ -25,7 +27,7 @@ Discord 주요 채널을 매일 읽어서, 기존 보고 포맷에 맞춰 요약
 - `MESSAGE CONTENT INTENT` (중요)
 - `Requires OAuth2 Code Grant`는 OFF
 4. 서버(Verse8)에 Bot 초대
-5. 위 5개 채널에서 Bot에 최소 권한 부여
+5. 위 7개 채널에서 Bot에 최소 권한 부여
 - View Channel
 - Read Message History
 

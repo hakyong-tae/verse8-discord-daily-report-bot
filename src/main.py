@@ -50,6 +50,8 @@ def load_channel_configs() -> List[ChannelConfig]:
         ChannelConfig("1465948768846348431", "cpp-elites", "https://discord.com/channels/1374314257096900640/1465948768846348431"),
         ChannelConfig("1390227183196176384", "creator-chat", "https://discord.com/channels/1374314257096900640/1390227183196176384"),
         ChannelConfig("1401835443657510953", "korean-creator", "https://discord.com/channels/1374314257096900640/1401835443657510953"),
+        ChannelConfig("1447610199585062973", "event-chat-1", "https://discord.com/channels/1374314257096900640/1447610199585062973"),
+        ChannelConfig("1445637595995308093", "event-chat-2", "https://discord.com/channels/1374314257096900640/1445637595995308093"),
     ]
 
 
@@ -172,8 +174,16 @@ def build_llm_input(
     return "\n".join(chunks)
 
 
-def report_prompts(llm_input: str, report_time_kst: datetime) -> tuple[str, str]:
-    system_prompt = """당신은 디스코드 커뮤니티 운영 리포트 작성자다.
+def report_prompts(
+    llm_input: str,
+    report_time_kst: datetime,
+    channels: List[ChannelConfig],
+) -> tuple[str, str]:
+    channel_sections = "\n\n".join(
+        f"{idx}) {ch.label}\n- 문단형 서술"
+        for idx, ch in enumerate(channels, start=1)
+    )
+    system_prompt = f"""당신은 디스코드 커뮤니티 운영 리포트 작성자다.
 항상 한국어로 작성한다.
 과장 없이 사실 중심으로 작성한다.
 아래 형식을 반드시 지킨다.
@@ -181,20 +191,7 @@ def report_prompts(llm_input: str, report_time_kst: datetime) -> tuple[str, str]
 형식:
 [Verse 8 디스코드 현황 보고] – YYYY년 M월 D일 10:00 기준
 
-1) general-chat
-- 문단형 서술로 핵심 이슈를 요약
-
-2) korean-chat
-- 문단형 서술
-
-3) cpp-elites
-- 문단형 서술
-
-4) creator-chat
-- 문단형 서술
-
-5) korean-creator
-- 문단형 서술
+{channel_sections}
 
 추가 규칙:
 - 채널별로 긍정 분위기, 주요 질문/이슈, 운영진 대응, 제안/피드백이 있으면 반영.
@@ -217,9 +214,10 @@ def generate_report_openai(
     model: str,
     llm_input: str,
     report_time_kst: datetime,
+    channels: List[ChannelConfig],
 ) -> str:
     client = OpenAI(api_key=openai_api_key)
-    system_prompt, user_prompt = report_prompts(llm_input, report_time_kst)
+    system_prompt, user_prompt = report_prompts(llm_input, report_time_kst, channels)
 
     response = client.responses.create(
         model=model,
@@ -238,8 +236,9 @@ def generate_report_gemini(
     model: str,
     llm_input: str,
     report_time_kst: datetime,
+    channels: List[ChannelConfig],
 ) -> str:
-    system_prompt, user_prompt = report_prompts(llm_input, report_time_kst)
+    system_prompt, user_prompt = report_prompts(llm_input, report_time_kst, channels)
     url = f"{GEMINI_API_BASE}/models/{model}:generateContent"
 
     payload = {
@@ -314,10 +313,14 @@ def main() -> int:
         llm_input = build_llm_input(channels, messages_by_channel, start_utc, end_utc)
         if llm_provider == "openai":
             openai_api_key = env_required("OPENAI_API_KEY")
-            report = generate_report_openai(openai_api_key, openai_model, llm_input, report_time_kst)
+            report = generate_report_openai(
+                openai_api_key, openai_model, llm_input, report_time_kst, channels
+            )
         elif llm_provider == "gemini":
             gemini_api_key = env_required("GEMINI_API_KEY")
-            report = generate_report_gemini(gemini_api_key, gemini_model, llm_input, report_time_kst)
+            report = generate_report_gemini(
+                gemini_api_key, gemini_model, llm_input, report_time_kst, channels
+            )
         else:
             raise ValueError("LLM_PROVIDER must be one of: openai, gemini")
 
