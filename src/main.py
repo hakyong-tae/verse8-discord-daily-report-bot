@@ -337,32 +337,44 @@ def generate_report_gemini(
     channels: List[ChannelConfig],
 ) -> str:
     system_prompt, user_prompt = report_prompts(llm_input, report_time_kst, channels)
-    url = f"{GEMINI_API_BASE}/models/{model}:generateContent"
-
+    fallback_models = [model, "gemini-2.5-flash-lite", "gemini-2.5-flash"]
+    tried: List[str] = []
     payload = {
         "systemInstruction": {"parts": [{"text": system_prompt}]},
         "contents": [{"role": "user", "parts": [{"text": user_prompt}]}],
         "generationConfig": {"temperature": 0.2},
     }
-    resp = requests.post(
-        url,
-        params={"key": gemini_api_key},
-        json=payload,
-        timeout=60,
-    )
-    if resp.status_code >= 300:
-        raise RuntimeError(f"Gemini API error: {resp.status_code} {resp.text[:500]}")
+    last_error = ""
 
-    data = resp.json()
-    candidates = data.get("candidates") or []
-    if not candidates:
-        raise RuntimeError(f"Gemini API returned no candidates: {data}")
+    for candidate_model in fallback_models:
+        if candidate_model in tried:
+            continue
+        tried.append(candidate_model)
+        url = f"{GEMINI_API_BASE}/models/{candidate_model}:generateContent"
+        resp = requests.post(
+            url,
+            params={"key": gemini_api_key},
+            json=payload,
+            timeout=60,
+        )
+        if resp.status_code == 404:
+            last_error = f"Gemini model unavailable: {candidate_model}"
+            continue
+        if resp.status_code >= 300:
+            raise RuntimeError(f"Gemini API error: {resp.status_code} {resp.text[:500]}")
 
-    parts = (((candidates[0] or {}).get("content") or {}).get("parts")) or []
-    text = "".join(part.get("text", "") for part in parts if isinstance(part, dict)).strip()
-    if not text:
-        raise RuntimeError(f"Gemini API returned empty text: {data}")
-    return text
+        data = resp.json()
+        candidates = data.get("candidates") or []
+        if not candidates:
+            raise RuntimeError(f"Gemini API returned no candidates: {data}")
+
+        parts = (((candidates[0] or {}).get("content") or {}).get("parts")) or []
+        text = "".join(part.get("text", "") for part in parts if isinstance(part, dict)).strip()
+        if not text:
+            raise RuntimeError(f"Gemini API returned empty text: {data}")
+        return text
+
+    raise RuntimeError(last_error or "Gemini model not available")
 
 
 def post_to_slack(webhook_url: str, text: str) -> None:
@@ -449,7 +461,7 @@ def main() -> int:
 
         llm_provider = os.getenv("LLM_PROVIDER", "gemini").strip().lower()
         openai_model = os.getenv("OPENAI_MODEL", "gpt-4.1")
-        gemini_model = os.getenv("GEMINI_MODEL", "gemini-2.0-flash")
+        gemini_model = os.getenv("GEMINI_MODEL", "gemini-2.5-flash-lite")
         max_messages_per_channel = int(os.getenv("MAX_MESSAGES_PER_CHANNEL", "180"))
         max_messages_for_llm_per_channel = int(
             os.getenv("MAX_MESSAGES_FOR_LLM_PER_CHANNEL", "60")

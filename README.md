@@ -64,7 +64,7 @@ Repository > Settings > Secrets and variables > Actions > Variables
 
 권장:
 - `LLM_PROVIDER` (기본 `gemini`)
-- `GEMINI_MODEL` (기본 `gemini-2.0-flash`)
+- `GEMINI_MODEL` (기본 `gemini-2.5-flash-lite`)
 - `OPENAI_MODEL` (기본 `gpt-4.1`)
 - `WINDOW_HOURS` (기본 `24`)
 - `MAX_MESSAGES_PER_CHANNEL` (기본 `180`)
