@@ -1,5 +1,6 @@
 import json
 import os
+import re
 import sys
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
@@ -88,6 +89,26 @@ def format_message(m: Dict[str, Any]) -> str:
     return f"- {author}: {content}"
 
 
+def is_noise_message(content: str) -> bool:
+    text = content.strip().lower()
+    if not text:
+        return True
+
+    # Ignore short greetings and reaction-only chatter.
+    greeting_patterns = [
+        r"^(hi|hello|hey|gm|gn|good morning|good night|thx|thanks|ok|okay|nice|lol|lfg)[!.~\s]*$",
+        r"^(안녕|안녕하세요|좋은 아침|굿모닝|굿밤|감사|고마워|오케이|화이팅|ㅋㅋ+|ㅎㅎ+)[!.~\s]*$",
+    ]
+    for p in greeting_patterns:
+        if re.match(p, text):
+            return True
+
+    # Very short non-informative lines are usually not issues.
+    if len(text) <= 8:
+        return True
+    return False
+
+
 def fetch_channel_messages(
     token: str,
     channel_id: str,
@@ -152,6 +173,7 @@ def build_llm_input(
     messages_by_channel: Dict[str, List[Dict[str, Any]]],
     start_utc: datetime,
     end_utc: datetime,
+    max_messages_for_llm_per_channel: int,
 ) -> str:
     start_kst = start_utc.astimezone(KST)
     end_kst = end_utc.astimezone(KST)
@@ -168,7 +190,18 @@ def build_llm_input(
             chunks.append("- 최근 기간 내 메시지 없음")
             continue
 
+        filtered = []
         for m in msgs:
+            content = (m.get("content") or "").strip()
+            if content and is_noise_message(content):
+                continue
+            filtered.append(m)
+
+        if not filtered:
+            chunks.append("- 이슈성 메시지 후보 없음(인사/짧은 잡담 제외)")
+            continue
+
+        for m in filtered[-max_messages_for_llm_per_channel:]:
             chunks.append(format_message(m))
 
     return "\n".join(chunks)
@@ -179,25 +212,37 @@ def report_prompts(
     report_time_kst: datetime,
     channels: List[ChannelConfig],
 ) -> tuple[str, str]:
-    channel_sections = "\n\n".join(
-        f"{idx}) {ch.label}\n- 문단형 서술"
-        for idx, ch in enumerate(channels, start=1)
-    )
     system_prompt = f"""당신은 디스코드 커뮤니티 운영 리포트 작성자다.
 항상 한국어로 작성한다.
 과장 없이 사실 중심으로 작성한다.
 아래 형식을 반드시 지킨다.
 
 형식:
-[Verse 8 디스코드 현황 보고] – YYYY년 M월 D일 10:00 기준
+[Verse 8 디스코드 핵심 이슈 요약] – YYYY년 M월 D일 10:00 기준
 
-{channel_sections}
+1) 핵심 이슈 제목
+- 왜 이슈인지 2~4문장 요약
+- 관련 채널: 채널명 1~3개
+- 즉시 액션: 한 줄
+
+2) 핵심 이슈 제목
+- 왜 이슈인지 2~4문장 요약
+- 관련 채널: 채널명 1~3개
+- 즉시 액션: 한 줄
+
+3) 핵심 이슈 제목
+- 왜 이슈인지 2~4문장 요약
+- 관련 채널: 채널명 1~3개
+- 즉시 액션: 한 줄
+
+운영 메모
+- 2~3줄로 오늘 우선순위만 작성
 
 추가 규칙:
-- 채널별로 긍정 분위기, 주요 질문/이슈, 운영진 대응, 제안/피드백이 있으면 반영.
+- 인사/잡담/짧은 리액션은 핵심 이슈에서 제외한다.
+- 반드시 "이슈성 높은 내용"만 3개 고른다. 중요도가 낮으면 제외.
 - 확실하지 않은 사실은 단정하지 말고 '보임', '추정됨', '언급됨' 표현 사용.
-- 메시지가 거의 없으면 그 사실을 짧게 명시.
-- 마지막에 '운영 메모' 2~4줄 추가: 오늘 바로 확인할 액션만 간결히 작성.
+- 사용자 불편, 오류, 결제/보상, 운영정책, 이벤트 운영 리스크를 우선한다.
 """
 
     user_prompt = f"""보고 기준 시각(KST): {report_time_kst.strftime('%Y-%m-%d %H:%M')}
@@ -281,18 +326,25 @@ def generate_fallback_report(
 ) -> str:
     lines: List[str] = []
     lines.append(
-        f"[Verse 8 디스코드 현황 보고] – {report_time_kst.year}년 {report_time_kst.month}월 {report_time_kst.day}일 10:00 기준"
+        f"[Verse 8 디스코드 핵심 이슈 요약] – {report_time_kst.year}년 {report_time_kst.month}월 {report_time_kst.day}일 10:00 기준"
     )
     lines.append("")
     lines.append("[안내] LLM API 한도 이슈로 기본 요약 모드로 생성되었습니다.")
     lines.append(f"[사유] {reason[:180]}")
     lines.append("")
 
-    for idx, ch in enumerate(channels, start=1):
+    ranked = sorted(
+        channels,
+        key=lambda c: len(messages_by_channel.get(c.channel_id, [])),
+        reverse=True,
+    )[:3]
+    for idx, ch in enumerate(ranked, start=1):
         msgs = messages_by_channel.get(ch.channel_id, [])
-        lines.append(f"{idx}) {ch.label}")
+        lines.append(f"{idx}) {ch.label} 채널 이슈 모니터링 필요")
         if not msgs:
-            lines.append("최근 24시간 기준 메시지가 없거나 접근 가능한 로그가 확인되지 않았습니다.")
+            lines.append("- 최근 24시간 기준 메시지가 없거나 접근 가능한 로그가 확인되지 않았습니다.")
+            lines.append("- 관련 채널: 해당 없음")
+            lines.append("- 즉시 액션: 채널 권한 및 이벤트 일정 재점검")
             lines.append("")
             continue
 
@@ -304,9 +356,9 @@ def generate_fallback_report(
         if len(latest_content) > 160:
             latest_content = latest_content[:157] + "..."
 
-        lines.append(
-            f"최근 24시간 동안 총 {len(msgs)}건의 메시지가 확인되었습니다. 최신 대화는 {latest_author} 사용자의 '{latest_content}' 발언이었습니다."
-        )
+        lines.append(f"- 최근 24시간 동안 총 {len(msgs)}건의 메시지가 확인되었습니다.")
+        lines.append(f"- 최신 이슈 후보 발언: {latest_author} - '{latest_content}'")
+        lines.append(f"- 즉시 액션: {ch.label} 채널에서 반복 언급 이슈를 운영진이 우선 분류")
         lines.append("")
 
     lines.append("운영 메모")
@@ -325,6 +377,9 @@ def main() -> int:
         openai_model = os.getenv("OPENAI_MODEL", "gpt-4.1")
         gemini_model = os.getenv("GEMINI_MODEL", "gemini-2.0-flash")
         max_messages_per_channel = int(os.getenv("MAX_MESSAGES_PER_CHANNEL", "400"))
+        max_messages_for_llm_per_channel = int(
+            os.getenv("MAX_MESSAGES_FOR_LLM_PER_CHANNEL", "120")
+        )
 
         channels = load_channel_configs()
         start_utc, end_utc = get_time_window()
@@ -353,7 +408,13 @@ def main() -> int:
                 "Bot cannot access any configured channels. Check channel-level permissions in Discord."
             )
 
-        llm_input = build_llm_input(channels, messages_by_channel, start_utc, end_utc)
+        llm_input = build_llm_input(
+            channels,
+            messages_by_channel,
+            start_utc,
+            end_utc,
+            max_messages_for_llm_per_channel,
+        )
         try:
             if llm_provider == "openai":
                 openai_api_key = env_required("OPENAI_API_KEY")

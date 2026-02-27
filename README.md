@@ -6,6 +6,7 @@ Discord 주요 채널을 매일 읽어서, 기존 보고 포맷에 맞춰 요약
 - 매일 **오전 10시(KST)** GitHub Actions가 실행됨
 - 최근 24시간 Discord 메시지 수집
 - LLM(Gemini 또는 OpenAI)으로 한국어 운영 리포트 생성
+- 인사/잡담을 제외한 **핵심 이슈 Top 3 통합요약** 생성
 - Slack 채널로 자동 전송
 
 ## 2) 포함된 채널 (기본값)
@@ -67,6 +68,7 @@ Repository > Settings > Secrets and variables > Actions > Variables
 - `OPENAI_MODEL` (기본 `gpt-4.1`)
 - `WINDOW_HOURS` (기본 `24`)
 - `MAX_MESSAGES_PER_CHANNEL` (기본 `400`)
+- `MAX_MESSAGES_FOR_LLM_PER_CHANNEL` (기본 `120`, 요약 입력량 제한)
 - `DISCORD_CHANNELS_JSON` (선택)
 
 ## 8) 실행 방식
@@ -74,11 +76,11 @@ Repository > Settings > Secrets and variables > Actions > Variables
 - 수동: GitHub Actions 탭 > `Verse8 Discord Daily Report` > `Run workflow`
 
 ## 9) 현재 보고서 포맷 유지
-리포트는 아래 머리말 형식을 고정해서 생성됩니다.
+리포트는 아래 머리말 형식으로 생성됩니다.
 
-`[Verse 8 디스코드 현황 보고] – YYYY년 M월 D일 10:00 기준`
+`[Verse 8 디스코드 핵심 이슈 요약] – YYYY년 M월 D일 10:00 기준`
 
-그리고 채널별 문단 + 마지막 `운영 메모`를 포함합니다.
+그리고 이슈성 높은 내용만 3개를 통합해 `운영 메모`와 함께 전송합니다.
 
 ## 10) 로컬 테스트(선택)
 ```bash

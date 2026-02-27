@@ -40,6 +40,7 @@ jobs:
 
           WINDOW_HOURS: ${{ vars.WINDOW_HOURS || '24' }}
           MAX_MESSAGES_PER_CHANNEL: ${{ vars.MAX_MESSAGES_PER_CHANNEL || '400' }}
+          MAX_MESSAGES_FOR_LLM_PER_CHANNEL: ${{ vars.MAX_MESSAGES_FOR_LLM_PER_CHANNEL || '120' }}
           # Optional override example:
           # DISCORD_CHANNELS_JSON: ${{ vars.DISCORD_CHANNELS_JSON }}
         run: python src/main.py
