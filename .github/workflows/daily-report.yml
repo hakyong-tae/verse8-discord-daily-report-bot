@@ -1,13 +1,20 @@
 name: Verse8 Discord Daily Report
 
+permissions:
+  contents: write
+
 on:
   schedule:
-    # 10:00 KST = 01:00 UTC
+    # Multi-trigger between 09:00~10:00 KST (00:00~01:00 UTC)
+    - cron: "0,10,20,30,40,50 0 * * *"
     - cron: "0 1 * * *"
   workflow_dispatch:
 
 jobs:
   run-daily-report:
+    concurrency:
+      group: verse8-daily-report
+      cancel-in-progress: false
     runs-on: ubuntu-latest
 
     steps:
@@ -43,6 +50,22 @@ jobs:
           MAX_MESSAGES_FOR_LLM_PER_CHANNEL: ${{ vars.MAX_MESSAGES_FOR_LLM_PER_CHANNEL || '60' }}
           # Optional: stop after a specific KST date (YYYY-MM-DD)
           RUN_UNTIL_DATE: ${{ vars.RUN_UNTIL_DATE || '' }}
+          SEND_ONCE_PER_DAY: ${{ vars.SEND_ONCE_PER_DAY || 'true' }}
+          SEND_STATE_FILE: ${{ vars.SEND_STATE_FILE || '.state/last_sent_date_kst.txt' }}
+          FORCE_SEND: ${{ vars.FORCE_SEND || 'false' }}
           # Optional override example:
           # DISCORD_CHANNELS_JSON: ${{ vars.DISCORD_CHANNELS_JSON }}
         run: python src/main.py
+
+      - name: Persist daily send state
+        if: success()
+        run: |
+          if git diff --quiet -- .state/last_sent_date_kst.txt; then
+            echo "No send-state changes."
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add .state/last_sent_date_kst.txt
+          git commit -m "chore: update daily send state [skip ci]" || true
+          git push

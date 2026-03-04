@@ -3,11 +3,11 @@
 Discord 주요 채널을 매일 읽어서, 기존 보고 포맷에 맞춰 요약한 뒤 Slack으로 자동 전송합니다.
 
 ## 1) 이 프로젝트가 하는 일
-- 매일 **오전 10시(KST)** GitHub Actions가 실행됨
+- 매일 **09:00~10:00(KST)** 사이 GitHub Actions가 다중 트리거됨
 - 최근 24시간 Discord 메시지 수집
 - LLM(Gemini 또는 OpenAI)으로 한국어 운영 리포트 생성
 - 인사/잡담을 제외한 **핵심 이슈 Top 3 통합요약** 생성
-- Slack 채널로 자동 전송
+- KST 기준 **하루 1회만** Slack 채널로 자동 전송
 
 ## 2) 포함된 채널 (기본값)
 - `general-chat` (1447614842394509452)
@@ -70,10 +70,13 @@ Repository > Settings > Secrets and variables > Actions > Variables
 - `MAX_MESSAGES_PER_CHANNEL` (기본 `180`)
 - `MAX_MESSAGES_FOR_LLM_PER_CHANNEL` (기본 `60`, 요약 입력량 제한)
 - `RUN_UNTIL_DATE` (선택, `YYYY-MM-DD`, 이 날짜 이후 자동 건너뜀)
+- `SEND_ONCE_PER_DAY` (기본 `true`)
+- `SEND_STATE_FILE` (기본 `.state/last_sent_date_kst.txt`)
+- `FORCE_SEND` (기본 `false`, 수동 강제 발송용)
 - `DISCORD_CHANNELS_JSON` (선택)
 
 ## 8) 실행 방식
-- 자동: 매일 10:00 KST
+- 자동: 매일 09:00~10:00 KST 다중 트리거 + KST 기준 하루 1회 발송
 - 수동: GitHub Actions 탭 > `Verse8 Discord Daily Report` > `Run workflow`
 
 ## 9) 현재 보고서 포맷 유지

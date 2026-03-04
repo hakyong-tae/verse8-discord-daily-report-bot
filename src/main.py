@@ -13,6 +13,7 @@ from openai import OpenAI
 DISCORD_API_BASE = "https://discord.com/api/v10"
 GEMINI_API_BASE = "https://generativelanguage.googleapis.com/v1beta"
 KST = timezone(timedelta(hours=9))
+DEFAULT_SEND_STATE_FILE = ".state/last_sent_date_kst.txt"
 ISSUE_KEYWORDS = [
     "error",
     "bug",
@@ -67,6 +68,27 @@ def env_required(name: str) -> str:
     if not value:
         raise ValueError(f"Missing required environment variable: {name}")
     return value
+
+
+def bool_env(name: str, default: bool) -> bool:
+    raw = os.getenv(name)
+    if raw is None:
+        return default
+    return raw.strip().lower() in ("1", "true", "yes", "y", "on")
+
+
+def read_last_sent_date(state_file: str) -> str:
+    try:
+        with open(state_file, "r", encoding="utf-8") as f:
+            return f.read().strip()
+    except FileNotFoundError:
+        return ""
+
+
+def write_last_sent_date(state_file: str, value: str) -> None:
+    os.makedirs(os.path.dirname(state_file) or ".", exist_ok=True)
+    with open(state_file, "w", encoding="utf-8") as f:
+        f.write(value + "\n")
 
 
 def load_channel_configs() -> List[ChannelConfig]:
@@ -470,6 +492,22 @@ def main() -> int:
         channels = load_channel_configs()
         start_utc, end_utc = get_time_window()
         report_time_kst = end_utc.astimezone(KST)
+        today_kst = datetime.now(KST).date().isoformat()
+        send_once_per_day = bool_env("SEND_ONCE_PER_DAY", True)
+        force_send = bool_env("FORCE_SEND", False)
+        send_state_file = os.getenv("SEND_STATE_FILE", DEFAULT_SEND_STATE_FILE).strip()
+        if not send_state_file:
+            send_state_file = DEFAULT_SEND_STATE_FILE
+
+        if send_once_per_day and not force_send:
+            last_sent_date = read_last_sent_date(send_state_file)
+            if last_sent_date == today_kst:
+                print(
+                    f"Run skipped: already sent today in KST ({today_kst}). "
+                    f"Set FORCE_SEND=true to override."
+                )
+                return 0
+
         run_until_date = os.getenv("RUN_UNTIL_DATE", "").strip()
         if run_until_date:
             until = datetime.strptime(run_until_date, "%Y-%m-%d").date()
@@ -534,6 +572,8 @@ def main() -> int:
         print(report)
 
         post_to_slack(slack_webhook_url, report)
+        if send_once_per_day:
+            write_last_sent_date(send_state_file, today_kst)
         print("\nPosted report to Slack successfully.")
         return 0
 
