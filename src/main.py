@@ -3,7 +3,7 @@ import os
 import re
 import sys
 from dataclasses import dataclass
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, time, timedelta, timezone
 from typing import Any, Dict, List
 
 import requests
@@ -75,6 +75,18 @@ def bool_env(name: str, default: bool) -> bool:
     if raw is None:
         return default
     return raw.strip().lower() in ("1", "true", "yes", "y", "on")
+
+
+def parse_hhmm(value: str) -> time:
+    try:
+        hour_str, minute_str = value.split(":")
+        hour = int(hour_str)
+        minute = int(minute_str)
+    except Exception as e:
+        raise ValueError(f"Invalid HH:MM value: {value}") from e
+    if hour < 0 or hour > 23 or minute < 0 or minute > 59:
+        raise ValueError(f"Invalid HH:MM value: {value}")
+    return time(hour=hour, minute=minute)
 
 
 def read_last_sent_date(state_file: str) -> str:
@@ -496,8 +508,19 @@ def main() -> int:
         send_once_per_day = bool_env("SEND_ONCE_PER_DAY", True)
         force_send = bool_env("FORCE_SEND", False)
         send_state_file = os.getenv("SEND_STATE_FILE", DEFAULT_SEND_STATE_FILE).strip()
+        send_not_before_kst = os.getenv("SEND_NOT_BEFORE_KST", "09:50").strip()
         if not send_state_file:
             send_state_file = DEFAULT_SEND_STATE_FILE
+
+        now_kst = datetime.now(KST)
+        if send_not_before_kst and not force_send:
+            threshold = parse_hhmm(send_not_before_kst)
+            if now_kst.time() < threshold:
+                print(
+                    f"Run skipped: current KST {now_kst.strftime('%H:%M')} is earlier than "
+                    f"SEND_NOT_BEFORE_KST={send_not_before_kst}"
+                )
+                return 0
 
         if send_once_per_day and not force_send:
             last_sent_date = read_last_sent_date(send_state_file)
