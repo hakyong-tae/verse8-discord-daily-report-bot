@@ -52,7 +52,7 @@ jobs:
           RUN_UNTIL_DATE: ${{ vars.RUN_UNTIL_DATE || '' }}
           SEND_ONCE_PER_DAY: ${{ vars.SEND_ONCE_PER_DAY || 'true' }}
           SEND_STATE_FILE: ${{ vars.SEND_STATE_FILE || '.state/last_sent_date_kst.txt' }}
-          SEND_NOT_BEFORE_KST: ${{ vars.SEND_NOT_BEFORE_KST || '09:30' }}
+          SEND_NOT_BEFORE_KST: '09:30'
           FORCE_SEND: ${{ vars.FORCE_SEND || 'false' }}
           # Optional override example:
           # DISCORD_CHANNELS_JSON: ${{ vars.DISCORD_CHANNELS_JSON }}
