@@ -508,7 +508,7 @@ def main() -> int:
         send_once_per_day = bool_env("SEND_ONCE_PER_DAY", True)
         force_send = bool_env("FORCE_SEND", False)
         send_state_file = os.getenv("SEND_STATE_FILE", DEFAULT_SEND_STATE_FILE).strip()
-        send_not_before_kst = os.getenv("SEND_NOT_BEFORE_KST", "09:50").strip()
+        send_not_before_kst = os.getenv("SEND_NOT_BEFORE_KST", "09:30").strip()
         if not send_state_file:
             send_state_file = DEFAULT_SEND_STATE_FILE
 

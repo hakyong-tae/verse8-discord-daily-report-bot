@@ -5,10 +5,9 @@ permissions:
 
 on:
   schedule:
-    # Multi-trigger between 08:00~10:30 KST to absorb GitHub scheduler delays
-    - cron: "0,10,20,30,40,50 23 * * *"
-    - cron: "0,10,20,30,40,50 0 * * *"
-    - cron: "0,10,20,30 1 * * *"
+    # Multi-trigger between 09:30~10:00 KST (00:30~01:00 UTC), every 5 minutes
+    - cron: "30-59/5 0 * * *"
+    - cron: "0 1 * * *"
   workflow_dispatch:
 
 jobs:
@@ -53,7 +52,7 @@ jobs:
           RUN_UNTIL_DATE: ${{ vars.RUN_UNTIL_DATE || '' }}
           SEND_ONCE_PER_DAY: ${{ vars.SEND_ONCE_PER_DAY || 'true' }}
           SEND_STATE_FILE: ${{ vars.SEND_STATE_FILE || '.state/last_sent_date_kst.txt' }}
-          SEND_NOT_BEFORE_KST: ${{ vars.SEND_NOT_BEFORE_KST || '09:50' }}
+          SEND_NOT_BEFORE_KST: ${{ vars.SEND_NOT_BEFORE_KST || '09:30' }}
           FORCE_SEND: ${{ vars.FORCE_SEND || 'false' }}
           # Optional override example:
           # DISCORD_CHANNELS_JSON: ${{ vars.DISCORD_CHANNELS_JSON }}
