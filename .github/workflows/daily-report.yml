@@ -5,8 +5,11 @@ permissions:
 
 on:
   schedule:
-    # Multi-trigger between 09:30~10:00 KST (00:30~01:00 UTC), every 5 minutes
-    - cron: "30-59/5 0 * * *"
+    # Start much earlier to absorb GitHub scheduler delays.
+    # 06:00~08:55 KST = 21:00~23:55 UTC (previous day)
+    - cron: "0-59/5 21-23 * * *"
+    # 09:00~10:00 KST = 00:00~01:00 UTC
+    - cron: "0-59/5 0 * * *"
     - cron: "0 1 * * *"
   workflow_dispatch:
 
