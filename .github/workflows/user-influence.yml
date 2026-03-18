@@ -38,7 +38,7 @@ jobs:
           OPENAI_MODEL: ${{ vars.OPENAI_MODEL || 'gpt-4.1' }}
           TARGET_USERNAME: ${{ inputs.target_username }}
           ANALYSIS_WINDOW_DAYS: ${{ inputs.analysis_window_days }}
-          MAX_MESSAGES_PER_CHANNEL: ${{ vars.USER_ANALYSIS_MAX_MESSAGES_PER_CHANNEL || '1000' }}
+          MAX_MESSAGES_PER_CHANNEL: ${{ vars.USER_ANALYSIS_MAX_MESSAGES_PER_CHANNEL || '500' }}
         run: python src/user_influence.py
 
       - name: Upload report artifact

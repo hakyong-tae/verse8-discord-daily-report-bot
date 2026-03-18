@@ -2,6 +2,7 @@ import json
 import os
 import re
 import sys
+import time as time_module
 from dataclasses import dataclass
 from datetime import datetime, time, timedelta, timezone
 from typing import Any, Dict, List
@@ -215,6 +216,15 @@ def fetch_channel_messages(
         url = f"{DISCORD_API_BASE}/channels/{channel_id}/messages"
         resp = requests.get(url, headers=headers, params=params, timeout=30)
 
+        if resp.status_code == 429:
+            retry_after = 1.0
+            try:
+                retry_after = float(resp.json().get("retry_after", 1.0))
+            except Exception:
+                pass
+            time_module.sleep(max(retry_after, 0.5))
+            continue
+
         if resp.status_code == 403:
             raise PermissionError(
                 f"Discord access denied channel={channel_id}: {resp.status_code} {resp.text[:300]}"
@@ -248,6 +258,8 @@ def fetch_channel_messages(
                 break
 
         before = batch[-1]["id"]
+        # Prevent burst requests across many channels/windows.
+        time_module.sleep(0.35)
         if reached_older_than_start:
             break
 
