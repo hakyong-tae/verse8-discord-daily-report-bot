@@ -1,0 +1,48 @@
+name: Discord User Influence Analysis
+
+on:
+  workflow_dispatch:
+    inputs:
+      target_username:
+        description: "Discord username or global name to analyze"
+        required: true
+        default: "yuri_73073"
+      analysis_window_days:
+        description: "How many recent days to analyze"
+        required: true
+        default: "60"
+
+jobs:
+  analyze-user:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Run influence analysis
+        env:
+          DISCORD_BOT_TOKEN: ${{ secrets.DISCORD_BOT_TOKEN }}
+          LLM_PROVIDER: ${{ vars.LLM_PROVIDER || 'gemini' }}
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          GEMINI_MODEL: ${{ vars.GEMINI_MODEL || 'gemini-2.5-flash-lite' }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          OPENAI_MODEL: ${{ vars.OPENAI_MODEL || 'gpt-4.1' }}
+          TARGET_USERNAME: ${{ inputs.target_username }}
+          ANALYSIS_WINDOW_DAYS: ${{ inputs.analysis_window_days }}
+          MAX_MESSAGES_PER_CHANNEL: ${{ vars.USER_ANALYSIS_MAX_MESSAGES_PER_CHANNEL || '1000' }}
+        run: python src/user_influence.py
+
+      - name: Upload report artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: user-influence-report
+          path: output/*.md
