@@ -3,7 +3,7 @@
 Discord 주요 채널을 매일 읽어서, 기존 보고 포맷에 맞춰 요약한 뒤 Slack으로 자동 전송합니다.
 
 ## 1) 이 프로젝트가 하는 일
-- 매일 **06:00~10:00(KST)** 사이 GitHub Actions가 5분 간격 다중 트리거됨
+- 외부 스케줄러(권장: Cloud Scheduler)가 매일 GitHub Actions를 트리거함
 - 최근 24시간 Discord 메시지 수집
 - LLM(Gemini 또는 OpenAI)으로 한국어 운영 리포트 생성
 - 인사/잡담을 제외한 **핵심 이슈 Top 3 통합요약** 생성
@@ -77,8 +77,11 @@ Repository > Settings > Secrets and variables > Actions > Variables
 - `DISCORD_CHANNELS_JSON` (선택)
 
 ## 8) 실행 방식
-- 자동: 매일 06:00~10:00 KST 5분 간격 다중 트리거 + KST 기준 하루 1회 발송
+- 자동: 외부 스케줄러가 `workflow_dispatch` 호출
 - 수동: GitHub Actions 탭 > `Verse8 Discord Daily Report` > `Run workflow`
+
+정시 실행이 중요하면:
+- [CLOUD_SCHEDULER_SETUP.md](/Users/hytae/Downloads/verse8-discord-daily-report-bot/CLOUD_SCHEDULER_SETUP.md) 참고
 
 ## 9) 현재 보고서 포맷 유지
 리포트는 아래 머리말 형식으로 생성됩니다.
