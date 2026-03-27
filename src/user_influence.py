@@ -272,14 +272,17 @@ def main() -> int:
                 channels_by_id=channels_by_id,
             )
 
+        safe_target = re.sub(r"[^a-zA-Z0-9_-]+", "-", target_username).strip("-") or "user"
         output_dir = Path("output")
         output_dir.mkdir(exist_ok=True)
-        output_path = output_dir / f"user-influence-{target_username}-{datetime.now(KST).strftime('%Y%m%d-%H%M')}.md"
+        output_path = output_dir / (
+            f"user-influence-{safe_target}-{datetime.now(KST).strftime('%Y%m%d-%H%M')}.md"
+        )
         output_path.write_text(report + "\n", encoding="utf-8")
 
         print("\n===== USER INFLUENCE REPORT =====\n")
         print(report)
-        print(f"\nSaved report to {output_path}")
+        print(f"\nSaved report to {output_path.as_posix()}")
         return 0
     except Exception as e:
         print(f"ERROR: {e}", file=sys.stderr)
