@@ -75,8 +75,8 @@ jobs:
             echo "No send-state changes."
             exit 0
           fi
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git config user.name "Minam"
+          git config user.email "hy.tae@kakao.com"
           git add .state/last_sent_date_kst.txt
           git commit -m "chore: update daily send state [skip ci]" || true
           git pull --rebase origin main
