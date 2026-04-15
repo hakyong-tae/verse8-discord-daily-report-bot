@@ -13,6 +13,7 @@ from openai import OpenAI
 
 DISCORD_API_BASE = "https://discord.com/api/v10"
 GEMINI_API_BASE = "https://generativelanguage.googleapis.com/v1beta"
+DISCORD_GUILD_ID = "1374314257096900640"
 KST = timezone(timedelta(hours=9))
 DEFAULT_SEND_STATE_FILE = ".state/last_sent_date_kst.txt"
 ISSUE_KEYWORDS = [
@@ -149,7 +150,11 @@ def discord_headers(token: str) -> Dict[str, str]:
     }
 
 
-def format_message(m: Dict[str, Any]) -> str:
+def discord_message_link(channel_id: str, message_id: str) -> str:
+    return f"https://discord.com/channels/{DISCORD_GUILD_ID}/{channel_id}/{message_id}"
+
+
+def format_message(m: Dict[str, Any], channel_id: str = "") -> str:
     author = (m.get("author") or {}).get("username", "unknown")
     content = (m.get("content") or "").strip()
     if not content:
@@ -161,7 +166,11 @@ def format_message(m: Dict[str, Any]) -> str:
             parts.append(f"[embeds:{len(m['embeds'])}]")
         content = " ".join(parts) if parts else "[non-text message]"
 
-    return f"- {author}: {content}"
+    link = ""
+    if channel_id and m.get("id"):
+        link = f" ({discord_message_link(channel_id, m['id'])})"
+
+    return f"- {author}: {content}{link}"
 
 
 def is_noise_message(content: str) -> bool:
@@ -281,6 +290,9 @@ def build_llm_input(
     chunks.append(
         f"분석 기간(KST): {start_kst.strftime('%Y-%m-%d %H:%M')} ~ {end_kst.strftime('%Y-%m-%d %H:%M')}"
     )
+    chunks.append(
+        "※ 각 메시지 줄 끝의 괄호 안 URL이 해당 메시지의 Discord 직접 링크입니다. 보고서 작성 시 이슈 근거 메시지의 URL을 그대로 사용하세요."
+    )
 
     for ch in channels:
         msgs = messages_by_channel.get(ch.channel_id, [])
@@ -301,7 +313,7 @@ def build_llm_input(
             continue
 
         for m in filtered[-max_messages_for_llm_per_channel:]:
-            chunks.append(format_message(m))
+            chunks.append(format_message(m, channel_id=ch.channel_id))
 
     return "\n".join(chunks)
 
@@ -322,16 +334,19 @@ def report_prompts(
 1) 핵심 이슈 제목
 - 왜 이슈인지 2~4문장 요약
 - 관련 채널: 채널명 1~3개
+- 참고 메시지: https://discord.com/channels/... (이슈와 가장 직접 관련된 메시지 1~2개 링크)
 - 즉시 액션: 한 줄
 
 2) 핵심 이슈 제목
 - 왜 이슈인지 2~4문장 요약
 - 관련 채널: 채널명 1~3개
+- 참고 메시지: https://discord.com/channels/... (이슈와 가장 직접 관련된 메시지 1~2개 링크)
 - 즉시 액션: 한 줄
 
 3) 핵심 이슈 제목
 - 왜 이슈인지 2~4문장 요약
 - 관련 채널: 채널명 1~3개
+- 참고 메시지: https://discord.com/channels/... (이슈와 가장 직접 관련된 메시지 1~2개 링크)
 - 즉시 액션: 한 줄
 
 운영 메모
@@ -342,6 +357,13 @@ def report_prompts(
 - 반드시 "이슈성 높은 내용"만 3개 고른다. 중요도가 낮으면 제외.
 - 확실하지 않은 사실은 단정하지 말고 '보임', '추정됨', '언급됨' 표현 사용.
 - 사용자 불편, 오류, 결제/보상, 운영정책, 이벤트 운영 리스크를 우선한다.
+
+[참고 메시지 필드 규칙 — 절대 생략 금지]
+- 원문 데이터의 각 메시지 줄 끝에는 괄호 안에 Discord 링크가 있다.
+  예시 원문: "- username: 결제가 안 됩니다 (https://discord.com/channels/1374314257096900640/1234567890/9876543210)"
+- 각 이슈를 뒷받침하는 메시지 1~2개를 골라 해당 괄호 속 URL을 그대로 복사해 "참고 메시지:" 줄에 기입한다.
+- URL은 절대 임의로 생성하거나 변형하지 말 것. 원문에 있는 URL만 사용한다.
+- "참고 메시지:" 줄이 없는 이슈는 형식 오류로 간주한다. 반드시 포함할 것.
 """
 
     user_prompt = f"""보고 기준 시각(KST): {report_time_kst.strftime('%Y-%m-%d %H:%M')}
@@ -457,6 +479,7 @@ def generate_fallback_report(
                     "content": content,
                     "score": score,
                     "ts": m.get("timestamp", ""),
+                    "msg_id": m.get("id", ""),
                 }
             )
         issue_count_by_channel[ch.channel_id] = issue_count
@@ -490,6 +513,10 @@ def generate_fallback_report(
             lines.append(
                 f"- 관련 채널: {ch.label} (전체 {total_msgs}건, 이슈 후보 {issue_count_by_channel.get(ch.channel_id, 0)}건)"
             )
+            if c.get("msg_id"):
+                lines.append(
+                    f"- 참고 메시지: {discord_message_link(c['channel_id'], c['msg_id'])}"
+                )
             lines.append("- 즉시 액션: 운영진 확인 후 공지/가이드/답변 상태를 채널에 명시")
             lines.append("")
 
