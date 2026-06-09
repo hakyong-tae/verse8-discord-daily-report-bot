@@ -17,6 +17,7 @@ Discord 주요 채널을 매일 읽어서, 기존 보고 포맷에 맞춰 요약
 - `korean-creator` (1401835443657510953)
 - `event-chat-1` (1447610199585062973)
 - `event-chat-2` (1445637595995308093)
+- `maplestory-vibe-camp` (1511942141796945960)
 
 기본값은 `src/main.py`에 이미 들어있고, 필요 시 `DISCORD_CHANNELS_JSON`으로 덮어쓸 수 있습니다.
 

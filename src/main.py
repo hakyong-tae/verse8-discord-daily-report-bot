@@ -129,6 +129,7 @@ def load_channel_configs() -> List[ChannelConfig]:
         ChannelConfig("1401835443657510953", "korean-creator", "https://discord.com/channels/1374314257096900640/1401835443657510953"),
         ChannelConfig("1447610199585062973", "event-chat-1", "https://discord.com/channels/1374314257096900640/1447610199585062973"),
         ChannelConfig("1445637595995308093", "event-chat-2", "https://discord.com/channels/1374314257096900640/1445637595995308093"),
+        ChannelConfig("1511942141796945960", "maplestory-vibe-camp", "https://discord.com/channels/1374314257096900640/1511942141796945960"),
     ]
 
 
